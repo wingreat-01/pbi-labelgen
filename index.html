@@ -236,6 +236,7 @@ body {
     width:  261mm;
     height: 186mm;
     page-break-after: always;
+    overflow: visible;
   }
   .a4-page-wrap:last-child { page-break-after: avoid; }
 
@@ -358,28 +359,26 @@ function generate() {
     let lines = '';
 
     if (!forScreen) {
-      // PRINT: SVG in mm, positioned to cover margin+grid
-      // SVG canvas: from -STUB,-STUB to 261+STUB,186+STUB
-      const W = 261 + STUB * 2;
-      const H = 186 + STUB * 2;
+      // PRINT SVG: viewBox covers -STUB to 261+STUB horizontally, -STUB to 186+STUB vertically
+      // Coordinates map 1:1 to mm. Grid sits at (0,0)→(261,186).
+      // Left stub:   x from -STUB to 0   | Right stub:  x from 261 to 261+STUB
+      // Top stub:    y from -STUB to 0   | Bottom stub: y from 186 to 186+STUB
+      const VX = -STUB, VY = -STUB;
+      const VW = 261 + STUB * 2, VH = 186 + STUB * 2;
 
-      // Horizontal stubs — only at left edge (x: -STUB→0) and right edge (x: 261→261+STUB)
       rowY.forEach(y => {
-        const sy = y + STUB; // offset because SVG origin is at -STUB
-        lines += `<line x1="0" y1="${sy}" x2="${STUB}" y2="${sy}" stroke="#000" stroke-width="${SW}" stroke-dasharray="${DASH}"/>`;
-        lines += `<line x1="${STUB+261}" y1="${sy}" x2="${W}" y2="${sy}" stroke="#000" stroke-width="${SW}" stroke-dasharray="${DASH}"/>`;
+        lines += `<line x1="${-STUB}" y1="${y}" x2="0"           y2="${y}" stroke="#000" stroke-width="${SW}" stroke-dasharray="${DASH}"/>`;
+        lines += `<line x1="261"      y1="${y}" x2="${261+STUB}"  y2="${y}" stroke="#000" stroke-width="${SW}" stroke-dasharray="${DASH}"/>`;
       });
-
-      // Vertical stubs — only at top edge (y: -STUB→0) and bottom edge (y: 186→186+STUB)
       colX.forEach(x => {
-        const sx = x + STUB;
-        lines += `<line x1="${sx}" y1="0" x2="${sx}" y2="${STUB}" stroke="#000" stroke-width="${SW}" stroke-dasharray="${DASH}"/>`;
-        lines += `<line x1="${sx}" y1="${STUB+186}" x2="${sx}" y2="${H}" stroke="#000" stroke-width="${SW}" stroke-dasharray="${DASH}"/>`;
+        lines += `<line x1="${x}" y1="${-STUB}" x2="${x}" y2="0"           stroke="#000" stroke-width="${SW}" stroke-dasharray="${DASH}"/>`;
+        lines += `<line x1="${x}" y1="186"      x2="${x}" y2="${186+STUB}" stroke="#000" stroke-width="${SW}" stroke-dasharray="${DASH}"/>`;
       });
 
       return `<svg xmlns="http://www.w3.org/2000/svg"
-        width="${W}mm" height="${H}mm" viewBox="0 0 ${W} ${H}"
-        style="position:absolute;top:-${STUB}mm;left:-${STUB}mm;pointer-events:none;overflow:visible;z-index:10">
+        width="${VW}mm" height="${VH}mm"
+        viewBox="${VX} ${VY} ${VW} ${VH}"
+        style="position:absolute;top:-${STUB}mm;left:-${STUB}mm;pointer-events:none;z-index:10">
         ${lines}
       </svg>`;
 

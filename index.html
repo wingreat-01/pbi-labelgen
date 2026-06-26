@@ -170,10 +170,8 @@ body {
     grid-template-columns: repeat(3, 87mm);    /* 261/3 */
     grid-template-rows:    repeat(4, 46.5mm);  /* 186/4 */
     border: 1pt solid #000;
-    page-break-after: always;
     overflow: hidden;
   }
-  .a4-page:last-child { page-break-after: avoid; }
 
   /* Individual label cell */
   .p-cell {
@@ -226,6 +224,48 @@ body {
     white-space: nowrap;
     overflow: hidden;
   }
+
+  /* ════════════ CUTTING GUIDES ════════════
+     Tick marks drawn in the margin area (outside the label grid).
+     Positioned via absolute on a relative wrapper.
+     The wrapper matches the label grid exactly.
+  ════════════ */
+  .a4-page-wrap {
+    position: relative;
+    width:  261mm;
+    height: 186mm;
+    page-break-after: always;
+  }
+  .a4-page-wrap:last-child { page-break-after: avoid; }
+
+  /* The tick container is the same size as the grid, positioned at 0,0 */
+  .cut-guides {
+    position: absolute;
+    top: 0; left: 0;
+    width: 261mm; height: 186mm;
+    pointer-events: none;
+  }
+
+  /* Individual tick line */
+  .cut-h, .cut-v {
+    position: absolute;
+    background: #000;
+  }
+  /* Horizontal ticks (extend left or right into margin) */
+  .cut-h {
+    height: 0.3pt;
+    width: 4mm;          /* tick length into margin */
+  }
+  .cut-h.left  { left: -6mm; }   /* into left margin */
+  .cut-h.right { right: -6mm; }  /* into right margin */
+
+  /* Vertical ticks (extend up or down into margin) */
+  .cut-v {
+    width: 0.3pt;
+    height: 4mm;
+  }
+  .cut-v.top    { top: -6mm; }
+  .cut-v.bottom { bottom: -6mm; }
 </style>
 </head>
 <body>
@@ -318,16 +358,40 @@ function generate() {
   currentData = { customer, material, size, qty, date, timestamp: new Date().toISOString() };
 
   /* ── Print HTML ── */
+  // Col dividers at x = 87mm, 174mm (between cols 1-2, 2-3)
+  // Row dividers at y = 46.5mm, 93mm, 139.5mm (between rows 1-2, 2-3, 3-4)
+  // Outer corners: (0,0) (261,0) (0,186) (261,186)
+  const colX   = [0, 87, 174, 261];   // mm — 4 vertical lines
+  const rowY   = [0, 46.5, 93, 139.5, 186]; // mm — 5 horizontal lines
+
+  function buildCutGuides() {
+    let g = '<div class="cut-guides">';
+    // Horizontal ticks: left & right edge for every row boundary
+    rowY.forEach(y => {
+      const pct = (y / 186 * 100).toFixed(4) + '%';
+      g += `<div class="cut-h left"  style="top:${pct};transform:translateY(-50%)"></div>`;
+      g += `<div class="cut-h right" style="top:${pct};transform:translateY(-50%)"></div>`;
+    });
+    // Vertical ticks: top & bottom edge for every col boundary
+    colX.forEach(x => {
+      const pct = (x / 261 * 100).toFixed(4) + '%';
+      g += `<div class="cut-v top"    style="left:${pct};transform:translateX(-50%)"></div>`;
+      g += `<div class="cut-v bottom" style="left:${pct};transform:translateX(-50%)"></div>`;
+    });
+    g += '</div>';
+    return g;
+  }
+
   let ph = '';
   for (let p = 0; p < pages; p++) {
-    ph += `<div class="a4-page">`;
+    ph += `<div class="a4-page-wrap">${buildCutGuides()}<div class="a4-page">`;
     for (let i = 0; i < PER_PAGE; i++) {
       const n = p * PER_PAGE + i + 1;
       ph += n > qty
         ? `<div class="p-cell empty"></div>`
         : `<div class="p-cell">${buildRows(customer, material, size, n, qty, date, true)}</div>`;
     }
-    ph += `</div>`;
+    ph += `</div></div>`;
   }
   document.getElementById('print-area').innerHTML = ph;
 

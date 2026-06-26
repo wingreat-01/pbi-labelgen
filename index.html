@@ -84,7 +84,7 @@ body {
   aspect-ratio: 297 / 210;
   width: 100%;
   position: relative;
-  overflow: hidden;
+  overflow: visible;  /* allow cut-guide stubs to show outside the paper edge */
 }
 
 /* The inner table grid sits inside with a margin matching the print margin */
@@ -158,9 +158,9 @@ body {
 }
 
 @media print {
-  body         { background: #fff; }
+  body         { background: #fff; overflow: visible; }
   .screen-wrap { display: none !important; }
-  #print-area  { display: block !important; }
+  #print-area  { display: block !important; overflow: visible; }
 
   /* Usable: (297 - 2×18) × (210 - 2×12) = 261mm × 186mm */
   .a4-page {
@@ -237,6 +237,9 @@ body {
     height: 186mm;
     page-break-after: always;
     overflow: visible;
+    /* Push the wrapper slightly so left/top margin stubs are not at the page edge */
+    margin-left: 0;
+    margin-top: 0;
   }
   .a4-page-wrap:last-child { page-break-after: avoid; }
 
@@ -378,27 +381,31 @@ function generate() {
       return `<svg xmlns="http://www.w3.org/2000/svg"
         width="${VW}mm" height="${VH}mm"
         viewBox="${VX} ${VY} ${VW} ${VH}"
-        style="position:absolute;top:-${STUB}mm;left:-${STUB}mm;pointer-events:none;z-index:10">
+        style="position:absolute;top:-${STUB}mm;left:-${STUB}mm;overflow:visible;pointer-events:none;z-index:10">
         ${lines}
       </svg>`;
 
     } else {
       // SCREEN PREVIEW: percentage-based SVG inside .a4-screen-wrap
-      // colX as % of 261, rowY as % of 186
-      // STUB as % = STUB/261*100 for horizontal, STUB/186*100 for vertical
+      // Stubs extend OUTSIDE the grid into the margin area (negative % and >100%)
+      // SVG uses overflow:visible so stubs show beyond the container bounds
       const stubHpct = (STUB / 261 * 100).toFixed(3); // % of width
       const stubVpct = (STUB / 186 * 100).toFixed(3); // % of height
 
       rowY.forEach(y => {
         const ypct = (y / 186 * 100).toFixed(3);
-        lines += `<line x1="0%" y1="${ypct}%" x2="${stubHpct}%" y2="${ypct}%" stroke="#555" stroke-width="0.5" stroke-dasharray="3 2"/>`;
-        lines += `<line x1="${100 - +stubHpct}%" y1="${ypct}%" x2="100%" y2="${ypct}%" stroke="#555" stroke-width="0.5" stroke-dasharray="3 2"/>`;
+        // Left stub: from -stubH% to 0%
+        lines += `<line x1="-${stubHpct}%" y1="${ypct}%" x2="0%" y2="${ypct}%" stroke="#555" stroke-width="0.5" stroke-dasharray="3 2"/>`;
+        // Right stub: from 100% to 100+stubH%
+        lines += `<line x1="100%" y1="${ypct}%" x2="${(100 + +stubHpct).toFixed(3)}%" y2="${ypct}%" stroke="#555" stroke-width="0.5" stroke-dasharray="3 2"/>`;
       });
 
       colX.forEach(x => {
         const xpct = (x / 261 * 100).toFixed(3);
-        lines += `<line x1="${xpct}%" y1="0%" x2="${xpct}%" y2="${stubVpct}%" stroke="#555" stroke-width="0.5" stroke-dasharray="3 2"/>`;
-        lines += `<line x1="${xpct}%" y1="${100 - +stubVpct}%" x2="${xpct}%" y2="100%" stroke="#555" stroke-width="0.5" stroke-dasharray="3 2"/>`;
+        // Top stub: from -stubV% to 0%
+        lines += `<line x1="${xpct}%" y1="-${stubVpct}%" x2="${xpct}%" y2="0%" stroke="#555" stroke-width="0.5" stroke-dasharray="3 2"/>`;
+        // Bottom stub: from 100% to 100+stubV%
+        lines += `<line x1="${xpct}%" y1="100%" x2="${xpct}%" y2="${(100 + +stubVpct).toFixed(3)}%" stroke="#555" stroke-width="0.5" stroke-dasharray="3 2"/>`;
       });
 
       return `<svg xmlns="http://www.w3.org/2000/svg"
@@ -408,6 +415,8 @@ function generate() {
       </svg>`;
     }
   }
+
+
 
   let ph = '';
   for (let p = 0; p < pages; p++) {

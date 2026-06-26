@@ -338,53 +338,81 @@ function generate() {
   currentData = { customer, material, size, qty, date, timestamp: new Date().toISOString() };
 
   /* ── Print HTML ── */
-  // Col dividers at x = 87mm, 174mm (between cols 1-2, 2-3)
-  // Row dividers at y = 46.5mm, 93mm, 139.5mm (between rows 1-2, 2-3, 3-4)
-  // Outer corners: (0,0) (261,0) (0,186) (261,186)
-  // SVG uses mm units. Lines extend from -10mm (margin) to 0 (grid edge)
-  // and from 261 to 271mm (right), 186 to 196mm (bottom).
-  // Dashes: 2mm on, 1.5mm off — looks like the reference image.
+  // Grid dimensions in mm
+  // Cols: 0, 87, 174, 261  — vertical dividers
+  // Rows: 0, 46.5, 93, 139.5, 186 — horizontal dividers
+  // Cutting guides = short dashed stubs in the MARGIN ONLY:
+  //   • Horizontal stubs at every rowY → extend LEFT of x=0 and RIGHT of x=261
+  //   • Vertical stubs at every colX   → extend ABOVE y=0 and BELOW y=186
+  // Inner grid intersections (e.g. x=87,y=46.5) get NO guide — only outer-edge positions.
 
-  const colX = [0, 87, 174, 261];        // mm — vertical cut lines
-  const rowY = [0, 46.5, 93, 139.5, 186]; // mm — horizontal cut lines
-  const MARGIN = 10; // mm line extends into margin
-  const DASH = '2 1.5';
-  const SW   = 0.4;  // stroke-width in mm
+  const colX = [0, 87, 174, 261];
+  const rowY = [0, 46.5, 93, 139.5, 186];
+  const STUB = 8;   // mm — how far the guide extends into the margin
+  const SW   = 0.35;
+  const DASH = '1.8 1.2';
 
-  function buildCutGuides() {
+  function buildCutGuides(forScreen) {
+    // forScreen: render as % units inside the a4-screen-wrap
+    // forPrint:  render as mm SVG inside a4-page-wrap
     let lines = '';
 
-    // Horizontal dashed lines: left stub + right stub at each row boundary
-    rowY.forEach(y => {
-      // left stub: from -MARGIN to 0 (stops at grid edge)
-      lines += `<line x1="${-MARGIN}" y1="${y}" x2="0" y2="${y}"
-        stroke="#000" stroke-width="${SW}" stroke-dasharray="${DASH}" />`;
-      // right stub: from 261 to 261+MARGIN
-      lines += `<line x1="261" y1="${y}" x2="${261 + MARGIN}" y2="${y}"
-        stroke="#000" stroke-width="${SW}" stroke-dasharray="${DASH}" />`;
-    });
+    if (!forScreen) {
+      // PRINT: SVG in mm, positioned to cover margin+grid
+      // SVG canvas: from -STUB,-STUB to 261+STUB,186+STUB
+      const W = 261 + STUB * 2;
+      const H = 186 + STUB * 2;
 
-    // Vertical dashed lines: top stub + bottom stub at each col boundary
-    colX.forEach(x => {
-      // top stub: from -MARGIN to 0
-      lines += `<line x1="${x}" y1="${-MARGIN}" x2="${x}" y2="0"
-        stroke="#000" stroke-width="${SW}" stroke-dasharray="${DASH}" />`;
-      // bottom stub: from 186 to 186+MARGIN
-      lines += `<line x1="${x}" y1="186" x2="${x}" y2="${186 + MARGIN}"
-        stroke="#000" stroke-width="${SW}" stroke-dasharray="${DASH}" />`;
-    });
+      // Horizontal stubs — only at left edge (x: -STUB→0) and right edge (x: 261→261+STUB)
+      rowY.forEach(y => {
+        const sy = y + STUB; // offset because SVG origin is at -STUB
+        lines += `<line x1="0" y1="${sy}" x2="${STUB}" y2="${sy}" stroke="#000" stroke-width="${SW}" stroke-dasharray="${DASH}"/>`;
+        lines += `<line x1="${STUB+261}" y1="${sy}" x2="${W}" y2="${sy}" stroke="#000" stroke-width="${SW}" stroke-dasharray="${DASH}"/>`;
+      });
 
-    return `<svg class="cut-guides" xmlns="http://www.w3.org/2000/svg"
-      viewBox="${-MARGIN} ${-MARGIN} ${261 + MARGIN*2} ${186 + MARGIN*2}"
-      width="${261 + MARGIN*2}mm" height="${186 + MARGIN*2}mm"
-      style="position:absolute;top:${-MARGIN}mm;left:${-MARGIN}mm;overflow:visible">
-      ${lines}
-    </svg>`;
+      // Vertical stubs — only at top edge (y: -STUB→0) and bottom edge (y: 186→186+STUB)
+      colX.forEach(x => {
+        const sx = x + STUB;
+        lines += `<line x1="${sx}" y1="0" x2="${sx}" y2="${STUB}" stroke="#000" stroke-width="${SW}" stroke-dasharray="${DASH}"/>`;
+        lines += `<line x1="${sx}" y1="${STUB+186}" x2="${sx}" y2="${H}" stroke="#000" stroke-width="${SW}" stroke-dasharray="${DASH}"/>`;
+      });
+
+      return `<svg xmlns="http://www.w3.org/2000/svg"
+        width="${W}mm" height="${H}mm" viewBox="0 0 ${W} ${H}"
+        style="position:absolute;top:-${STUB}mm;left:-${STUB}mm;pointer-events:none;overflow:visible;z-index:10">
+        ${lines}
+      </svg>`;
+
+    } else {
+      // SCREEN PREVIEW: percentage-based SVG inside .a4-screen-wrap
+      // colX as % of 261, rowY as % of 186
+      // STUB as % = STUB/261*100 for horizontal, STUB/186*100 for vertical
+      const stubHpct = (STUB / 261 * 100).toFixed(3); // % of width
+      const stubVpct = (STUB / 186 * 100).toFixed(3); // % of height
+
+      rowY.forEach(y => {
+        const ypct = (y / 186 * 100).toFixed(3);
+        lines += `<line x1="0%" y1="${ypct}%" x2="${stubHpct}%" y2="${ypct}%" stroke="#555" stroke-width="0.5" stroke-dasharray="3 2"/>`;
+        lines += `<line x1="${100 - +stubHpct}%" y1="${ypct}%" x2="100%" y2="${ypct}%" stroke="#555" stroke-width="0.5" stroke-dasharray="3 2"/>`;
+      });
+
+      colX.forEach(x => {
+        const xpct = (x / 261 * 100).toFixed(3);
+        lines += `<line x1="${xpct}%" y1="0%" x2="${xpct}%" y2="${stubVpct}%" stroke="#555" stroke-width="0.5" stroke-dasharray="3 2"/>`;
+        lines += `<line x1="${xpct}%" y1="${100 - +stubVpct}%" x2="${xpct}%" y2="100%" stroke="#555" stroke-width="0.5" stroke-dasharray="3 2"/>`;
+      });
+
+      return `<svg xmlns="http://www.w3.org/2000/svg"
+        width="100%" height="100%"
+        style="position:absolute;top:0;left:0;pointer-events:none;overflow:visible;z-index:10">
+        ${lines}
+      </svg>`;
+    }
   }
 
   let ph = '';
   for (let p = 0; p < pages; p++) {
-    ph += `<div class="a4-page-wrap">${buildCutGuides()}<div class="a4-page">`;
+    ph += `<div class="a4-page-wrap">${buildCutGuides(false)}<div class="a4-page">`;
     for (let i = 0; i < PER_PAGE; i++) {
       const n = p * PER_PAGE + i + 1;
       ph += n > qty
@@ -400,7 +428,8 @@ function generate() {
   for (let p = 0; p < pages; p++) {
     sh += `<div class="pg-wrap">
       <div class="pg-label">Page ${p + 1} of ${pages}</div>
-      <div class="a4-screen-wrap">
+      <div class="a4-screen-wrap" style="position:relative">
+        ${buildCutGuides(true)}
         <div class="a4-screen">`;
     for (let i = 0; i < PER_PAGE; i++) {
       const n = p * PER_PAGE + i + 1;

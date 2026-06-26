@@ -226,9 +226,10 @@ body {
   }
 
   /* ════════════ CUTTING GUIDES ════════════
-     Tick marks drawn in the margin area (outside the label grid).
-     Positioned via absolute on a relative wrapper.
-     The wrapper matches the label grid exactly.
+     SVG overlay — dashed lines extend only into the margin,
+     stopping exactly at the label grid edge.
+     Wrapper is same footprint as the label grid (261×186mm).
+     SVG overflows into the margin via overflow:visible.
   ════════════ */
   .a4-page-wrap {
     position: relative;
@@ -238,34 +239,13 @@ body {
   }
   .a4-page-wrap:last-child { page-break-after: avoid; }
 
-  /* The tick container is the same size as the grid, positioned at 0,0 */
   .cut-guides {
     position: absolute;
     top: 0; left: 0;
     width: 261mm; height: 186mm;
+    overflow: visible;
     pointer-events: none;
   }
-
-  /* Individual tick line */
-  .cut-h, .cut-v {
-    position: absolute;
-    background: #000;
-  }
-  /* Horizontal ticks (extend left or right into margin) */
-  .cut-h {
-    height: 0.3pt;
-    width: 4mm;          /* tick length into margin */
-  }
-  .cut-h.left  { left: -6mm; }   /* into left margin */
-  .cut-h.right { right: -6mm; }  /* into right margin */
-
-  /* Vertical ticks (extend up or down into margin) */
-  .cut-v {
-    width: 0.3pt;
-    height: 4mm;
-  }
-  .cut-v.top    { top: -6mm; }
-  .cut-v.bottom { bottom: -6mm; }
 </style>
 </head>
 <body>
@@ -361,25 +341,45 @@ function generate() {
   // Col dividers at x = 87mm, 174mm (between cols 1-2, 2-3)
   // Row dividers at y = 46.5mm, 93mm, 139.5mm (between rows 1-2, 2-3, 3-4)
   // Outer corners: (0,0) (261,0) (0,186) (261,186)
-  const colX   = [0, 87, 174, 261];   // mm — 4 vertical lines
-  const rowY   = [0, 46.5, 93, 139.5, 186]; // mm — 5 horizontal lines
+  // SVG uses mm units. Lines extend from -10mm (margin) to 0 (grid edge)
+  // and from 261 to 271mm (right), 186 to 196mm (bottom).
+  // Dashes: 2mm on, 1.5mm off — looks like the reference image.
+
+  const colX = [0, 87, 174, 261];        // mm — vertical cut lines
+  const rowY = [0, 46.5, 93, 139.5, 186]; // mm — horizontal cut lines
+  const MARGIN = 10; // mm line extends into margin
+  const DASH = '2 1.5';
+  const SW   = 0.4;  // stroke-width in mm
 
   function buildCutGuides() {
-    let g = '<div class="cut-guides">';
-    // Horizontal ticks: left & right edge for every row boundary
+    let lines = '';
+
+    // Horizontal dashed lines: left stub + right stub at each row boundary
     rowY.forEach(y => {
-      const pct = (y / 186 * 100).toFixed(4) + '%';
-      g += `<div class="cut-h left"  style="top:${pct};transform:translateY(-50%)"></div>`;
-      g += `<div class="cut-h right" style="top:${pct};transform:translateY(-50%)"></div>`;
+      // left stub: from -MARGIN to 0 (stops at grid edge)
+      lines += `<line x1="${-MARGIN}" y1="${y}" x2="0" y2="${y}"
+        stroke="#000" stroke-width="${SW}" stroke-dasharray="${DASH}" />`;
+      // right stub: from 261 to 261+MARGIN
+      lines += `<line x1="261" y1="${y}" x2="${261 + MARGIN}" y2="${y}"
+        stroke="#000" stroke-width="${SW}" stroke-dasharray="${DASH}" />`;
     });
-    // Vertical ticks: top & bottom edge for every col boundary
+
+    // Vertical dashed lines: top stub + bottom stub at each col boundary
     colX.forEach(x => {
-      const pct = (x / 261 * 100).toFixed(4) + '%';
-      g += `<div class="cut-v top"    style="left:${pct};transform:translateX(-50%)"></div>`;
-      g += `<div class="cut-v bottom" style="left:${pct};transform:translateX(-50%)"></div>`;
+      // top stub: from -MARGIN to 0
+      lines += `<line x1="${x}" y1="${-MARGIN}" x2="${x}" y2="0"
+        stroke="#000" stroke-width="${SW}" stroke-dasharray="${DASH}" />`;
+      // bottom stub: from 186 to 186+MARGIN
+      lines += `<line x1="${x}" y1="186" x2="${x}" y2="${186 + MARGIN}"
+        stroke="#000" stroke-width="${SW}" stroke-dasharray="${DASH}" />`;
     });
-    g += '</div>';
-    return g;
+
+    return `<svg class="cut-guides" xmlns="http://www.w3.org/2000/svg"
+      viewBox="${-MARGIN} ${-MARGIN} ${261 + MARGIN*2} ${186 + MARGIN*2}"
+      width="${261 + MARGIN*2}mm" height="${186 + MARGIN*2}mm"
+      style="position:absolute;top:${-MARGIN}mm;left:${-MARGIN}mm;overflow:visible">
+      ${lines}
+    </svg>`;
   }
 
   let ph = '';

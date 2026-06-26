@@ -5,49 +5,33 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PBI Label Generator</title>
 <style>
-/* ════════════════════════════════════════
-   RESET
-════════════════════════════════════════ */
+/* ════════════ RESET ════════════ */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* ════════════════════════════════════════
-   SCREEN STYLES
-════════════════════════════════════════ */
+/* ════════════ SCREEN UI ════════════ */
 body {
   font-family: 'Segoe UI', Arial, sans-serif;
   background: #eef1f7;
-  color: #111;
   min-height: 100vh;
 }
-
 .screen-wrap {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 32px 16px 60px;
+  display: flex; flex-direction: column;
+  align-items: center; padding: 32px 16px 60px;
 }
-
 .app-header { text-align: center; margin-bottom: 22px; }
-.app-header h1 {
-  font-size: 1.4rem; font-weight: 700;
-  letter-spacing: .04em; color: #0d1b4b;
-}
-.app-header p { font-size: .82rem; color: #666; margin-top: 4px; }
+.app-header h1 { font-size: 1.4rem; font-weight: 700; color: #0d1b4b; letter-spacing:.04em; }
+.app-header p  { font-size: .82rem; color: #666; margin-top: 4px; }
 
 .card {
-  background: #fff;
-  border-radius: 10px;
-  padding: 26px 28px;
-  width: 100%; max-width: 500px;
+  background: #fff; border-radius: 10px;
+  padding: 26px 28px; width: 100%; max-width: 500px;
   box-shadow: 0 2px 14px rgba(0,0,0,.09);
 }
-
 .form-row { display: flex; gap: 14px; }
 .form-group { margin-bottom: 14px; flex: 1; }
 .form-group label {
   display: block; font-size: .72rem; font-weight: 700;
-  text-transform: uppercase; letter-spacing: .07em;
-  color: #555; margin-bottom: 5px;
+  text-transform: uppercase; letter-spacing: .07em; color: #555; margin-bottom: 5px;
 }
 .form-group input {
   width: 100%; padding: 9px 12px;
@@ -60,99 +44,118 @@ body {
 .btn-row { display: flex; gap: 10px; margin-top: 6px; }
 .btn {
   flex: 1; padding: 11px; border: none; border-radius: 7px;
-  font-size: .88rem; font-weight: 600; cursor: pointer;
-  transition: background .2s;
+  font-size: .88rem; font-weight: 600; cursor: pointer; transition: background .2s;
 }
 .btn-generate { background: #0d1b4b; color: #fff; }
 .btn-generate:hover { background: #1a3080; }
-.btn-print { background: #16a34a; color: #fff; }
+.btn-print    { background: #16a34a; color: #fff; }
 .btn-print:hover { background: #15803d; }
-.btn-print:disabled, .btn-save:disabled { background: #9ca3af; cursor: not-allowed; }
-.btn-save { background: #7c3aed; color: #fff; }
-.btn-save:hover { background: #6d28d9; }
+.btn-save     { background: #7c3aed; color: #fff; }
+.btn-save:hover  { background: #6d28d9; }
+.btn:disabled { background: #9ca3af !important; cursor: not-allowed; }
 
 #status-msg {
-  margin-top: 12px; font-size: .82rem; text-align: center;
-  min-height: 18px; color: #555;
+  margin-top: 12px; font-size: .82rem; text-align: center; min-height: 18px; color: #555;
 }
 #status-msg.ok  { color: #16a34a; font-weight: 600; }
 #status-msg.err { color: #dc2626; font-weight: 600; }
-
-.summary {
-  margin-top: 10px; font-size: .8rem; color: #888;
-  text-align: center; display: none;
-}
+.summary { margin-top: 10px; font-size: .8rem; color: #888; text-align: center; display: none; }
 .summary strong { color: #0d1b4b; }
 
-/* ── SCREEN PREVIEW ──
-   Landscape A4 ratio: 297:210 = ~1.414:1
-   We show it at max 900px wide → height ≈ 636px
+/* ════════════ SCREEN PREVIEW ════════════
+   Shows a scaled-down version of the A4 landscape page.
+   Real A4 landscape = 297mm × 210mm.
+   We display it at 880px wide → scale = 880/1122px ≈ 0.784
+   (1mm ≈ 3.7795px at 96dpi → 297mm ≈ 1122px)
 */
-.preview-area { margin-top: 28px; width: 100%; max-width: 900px; }
-.pg-wrap { margin-bottom: 24px; }
+.preview-area  { margin-top: 28px; width: 100%; max-width: 920px; }
+.pg-wrap       { margin-bottom: 28px; }
 .pg-label {
-  font-size: .72rem; font-weight: 700;
-  letter-spacing: .06em; text-transform: uppercase;
-  color: #888; text-align: center; margin-bottom: 6px;
+  font-size: .72rem; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; color: #888; text-align: center; margin-bottom: 8px;
 }
 
-/* Landscape ratio grid */
-.a4-screen {
+/* White sheet shadow — mimics paper */
+.a4-screen-wrap {
   background: #fff;
-  border: 1px solid #bbb;
-  border-radius: 3px;
-  box-shadow: 0 1px 8px rgba(0,0,0,.08);
+  box-shadow: 0 2px 16px rgba(0,0,0,.15);
+  border: 1px solid #ccc;
+  /* Landscape aspect ratio: 297:210 */
+  aspect-ratio: 297 / 210;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+/* The inner table grid sits inside with a margin matching the print margin */
+.a4-screen {
+  position: absolute;
+  /* 10mm margin at 96dpi on a 297mm-wide container:
+     10/297 = 3.367% */
+  top:    3.367%;
+  left:   3.367%;
+  right:  3.367%;
+  bottom: 3.367%;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);  /* 3 cols */
-  grid-template-rows: repeat(4, 1fr);     /* 4 rows */
-  aspect-ratio: 297 / 210;               /* landscape */
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows:    repeat(4, 1fr);
+  border: 1.5px solid #000;
   overflow: hidden;
 }
 
 .sc-cell {
-  border-right: 1px solid #bbb;
-  border-bottom: 1px solid #bbb;
-  display: flex; flex-direction: column;
-  overflow: hidden;
+  border-right:  1px solid #aaa;
+  border-bottom: 1px solid #aaa;
+  display: flex; flex-direction: column; overflow: hidden;
 }
 .sc-cell:nth-child(3n)        { border-right: none; }
 .sc-cell:nth-last-child(-n+3) { border-bottom: none; }
-.sc-cell.empty                { background: #fafafa; }
+.sc-cell.empty { background: #f9f9f9; }
 
 .sc-row {
   display: flex; flex: 1;
-  border-bottom: 1px solid #e0e3ea;
-  overflow: hidden;
+  border-bottom: 1px solid #dde; overflow: hidden;
 }
 .sc-row:last-child { border-bottom: none; }
 
+/* Font size scales with container via vw-like approach:
+   container is max 920px wide → 1% ≈ 9.2px
+   we want ~8pt visible text → use clamp */
 .sc-key {
-  font-size: .48rem; font-weight: 700;
-  font-family: Arial, sans-serif;
-  padding: 1px 3px; border-right: 1px solid #e0e3ea;
-  width: 30%; display: flex; align-items: center;
-  white-space: nowrap; overflow: hidden; color: #222;
+  font-size: clamp(6px, 1vw, 9px);
+  font-weight: 700; font-family: Arial, sans-serif;
+  padding: 2px 4px; border-right: 1px solid #dde;
+  width: 32%; display: flex; align-items: center;
+  white-space: nowrap; overflow: hidden; color: #111;
 }
 .sc-val {
-  font-size: .48rem; font-weight: 700;
-  font-family: Arial, sans-serif;
-  padding: 1px 3px; flex: 1;
+  font-size: clamp(6px, 1vw, 9px);
+  font-weight: 700; font-family: Arial, sans-serif;
+  padding: 2px 4px; flex: 1;
   display: flex; align-items: center; justify-content: center;
   text-align: center; color: #111; overflow: hidden;
 }
 
+
 /* ════════════════════════════════════════
    PRINT — A4 LANDSCAPE
-   Page: 297mm × 210mm, zero margin
-   3 cols × 4 rows
-   Cell: 99mm wide × 52.5mm tall
-   Padding: 7mm left/right (0.7cm), 4.5mm top/bottom (0.45cm)
+   ─────────────────────────────────────
+   @page margin: 10mm each side
+   Usable area: (297-20)mm × (210-20)mm = 277mm × 190mm
+   3 cols: 277/3 = 92.33mm each
+   4 rows: 190/4 = 47.5mm each
+
+   Cell inner padding:
+     horizontal: 7mm  (0.7cm)
+     vertical:   4.5mm (0.45cm)
+
+   Font size: 9pt  (clearly readable at A4)
 ════════════════════════════════════════ */
 #print-area { display: none; }
 
 @page {
   size: A4 landscape;
-  margin: 0;
+  margin: 10mm;          /* browser default is ~17mm; forcing 10mm gives clean border */
 }
 
 @media print {
@@ -160,59 +163,58 @@ body {
   .screen-wrap { display: none !important; }
   #print-area  { display: block !important; }
 
+  /* Outer border around the whole page grid */
   .a4-page {
-    width:  297mm;
-    height: 210mm;
+    width:  277mm;   /* 297 - 2×10mm */
+    height: 190mm;   /* 210 - 2×10mm */
     display: grid;
-    grid-template-columns: repeat(3, 99mm);
-    grid-template-rows:    repeat(4, 52.5mm);
+    grid-template-columns: repeat(3, 92.33mm);
+    grid-template-rows:    repeat(4, 47.5mm);
+    border: 1pt solid #000;   /* outer page border */
     page-break-after: always;
     overflow: hidden;
   }
   .a4-page:last-child { page-break-after: avoid; }
 
+  /* Individual label cell */
   .p-cell {
-    width:  99mm;
-    height: 52.5mm;
-    border: 0.5pt solid #000;
-    display: flex;
-    flex-direction: column;
+    border-right:  0.5pt solid #000;
+    border-bottom: 0.5pt solid #000;
+    display: flex; flex-direction: column;
     overflow: hidden;
   }
+  .p-cell:nth-child(3n)        { border-right: none; }
+  .p-cell:nth-last-child(-n+3) { border-bottom: none; }
 
-  /* Each label has 5 rows → each row = 52.5mm / 5 = 10.5mm */
+  /* Each of 5 rows inside a cell */
   .p-row {
-    display: flex;
-    flex: 1;
+    display: flex; flex: 1;
     border-bottom: 0.5pt solid #000;
     overflow: hidden;
   }
   .p-row:last-child { border-bottom: none; }
 
-  /* KEY column — "CUSTOMER:", "MATERIAL:", etc.
-     padding: 0.45cm top/bottom, 0.7cm left/right */
+  /* KEY — "CUSTOMER:" etc. */
   .p-key {
-    width: 30%;
-    padding: 4.5mm 7mm;
-    font-size: 7.5pt;
+    width: 32%;
+    padding: 0 7mm;           /* horizontal: 0.7cm */
+    font-size: 9pt;
     font-family: Arial, sans-serif;
     font-weight: 700;
     border-right: 0.5pt solid #000;
-    display: flex;
-    align-items: center;
+    display: flex; align-items: center;
     white-space: nowrap;
+    overflow: hidden;
   }
 
-  /* VALUE column — centered */
+  /* VALUE — centered */
   .p-val {
     flex: 1;
-    padding: 4.5mm 7mm;
-    font-size: 7.5pt;
+    padding: 0 7mm;           /* horizontal: 0.7cm */
+    font-size: 9pt;
     font-family: Arial, sans-serif;
     font-weight: 700;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: flex; align-items: center; justify-content: center;
     text-align: center;
   }
 }
@@ -224,7 +226,7 @@ body {
 <div class="screen-wrap">
   <div class="app-header">
     <h1>📋 PBI Label Generator</h1>
-    <p>A4 Landscape · 3 columns × 4 rows · 12 labels per page</p>
+    <p>A4 Landscape · 3 × 4 grid · 12 labels per page</p>
   </div>
 
   <div class="card">
@@ -263,23 +265,20 @@ body {
     </div>
   </div>
 
-  <!-- Screen preview renders here -->
   <div class="preview-area" id="preview-area"></div>
 </div>
 
-<!-- ══ PRINT AREA (hidden on screen, visible on print) ══ -->
+<!-- ══ PRINT AREA ══ -->
 <div id="print-area"></div>
 
 <script>
-// ── CONFIG ──────────────────────────────────────────
-// Replace with your deployed Google Apps Script URL:
+// ── CONFIG — paste your GAS Web App URL here ──────────────
 const GAS_URL = 'https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec';
-// ────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────
 
-const PER_PAGE = 12; // 3 cols × 4 rows
+const PER_PAGE = 12;
 let currentData = null;
 
-/* Build 5 rows for one label cell */
 function buildRows(customer, material, size, n, total, date, forPrint) {
   const fields = [
     ['CUSTOMER:', customer],
@@ -316,7 +315,7 @@ function generate() {
     for (let i = 0; i < PER_PAGE; i++) {
       const n = p * PER_PAGE + i + 1;
       ph += n > qty
-        ? `<div class="p-cell"></div>`
+        ? `<div class="p-cell empty"></div>`
         : `<div class="p-cell">${buildRows(customer, material, size, n, qty, date, true)}</div>`;
     }
     ph += `</div>`;
@@ -328,18 +327,18 @@ function generate() {
   for (let p = 0; p < pages; p++) {
     sh += `<div class="pg-wrap">
       <div class="pg-label">Page ${p + 1} of ${pages}</div>
-      <div class="a4-screen">`;
+      <div class="a4-screen-wrap">
+        <div class="a4-screen">`;
     for (let i = 0; i < PER_PAGE; i++) {
       const n = p * PER_PAGE + i + 1;
       sh += n > qty
         ? `<div class="sc-cell empty"></div>`
         : `<div class="sc-cell">${buildRows(customer, material, size, n, qty, date, false)}</div>`;
     }
-    sh += `</div></div>`;
+    sh += `</div></div></div>`;
   }
   document.getElementById('preview-area').innerHTML = sh;
 
-  /* Summary */
   document.getElementById('summary').style.display = 'block';
   document.getElementById('sum-count').textContent =
     `${qty} labels · ${pages} A4 landscape page${pages !== 1 ? 's' : ''} · 12 per page`;
@@ -349,7 +348,6 @@ function generate() {
   setStatus('');
 }
 
-/* ── SAVE TO GOOGLE SHEET ── */
 async function saveToSheet() {
   if (!currentData) return;
   if (GAS_URL.includes('YOUR_DEPLOYMENT_ID')) {
@@ -365,11 +363,8 @@ async function saveToSheet() {
       body: JSON.stringify({ action: 'saveLabel', data: currentData })
     });
     const json = await res.json();
-    if (json.status === 'ok') {
-      setStatus('✅ Saved successfully!', 'ok');
-    } else {
-      setStatus('❌ ' + (json.message || 'Save failed.'), 'err');
-    }
+    setStatus(json.status === 'ok' ? '✅ Saved successfully!' : '❌ ' + (json.message || 'Save failed.'),
+              json.status === 'ok' ? 'ok' : 'err');
   } catch (e) {
     setStatus('❌ Network error: ' + e.message, 'err');
   }

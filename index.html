@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PBI Label Generator</title>
+<style>
+/* ════════════════════════════════════════
+   SCREEN STYLES
+════════════════════════════════════════ */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Segoe UI', Arial, sans-serif;
+  background: #eef1f7;
+  color: #111;
+  min-height: 100vh;
+}
+
+.screen-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px 16px 60px;
+}
+
+.app-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+.app-header h1 {
+  font-size: 1.45rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  color: #0d1b4b;
+}
+.app-header p { font-size: .82rem; color: #666; margin-top: 4px; }
+
+.card {
+  background: #fff;
+  border-radius: 10px;
+  padding: 28px 30px;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 2px 14px rgba(0,0,0,.09);
+}
+
+.form-row { display: flex; gap: 14px; }
+.form-group {
+  margin-bottom: 15px;
+  flex: 1;
+}
+.form-group label {
+  display: block;
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: #555;
+  margin-bottom: 5px;
+}
+.form-group input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1.5px solid #d0d5dd;
+  border-radius: 6px;
+  font-size: .9rem;
+  outline: none;
+  background: #fafafa;
+  transition: border-color .2s;
+}
+.form-group input:focus {
+  border-color: #2563eb;
+  background: #fff;
+}
+
+.btn-row { display: flex; gap: 10px; margin-top: 6px; }
+
+.btn {
+  flex: 1;
+  padding: 11px;
+  border: none;
+  border-radius: 7px;
+  font-size: .9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .2s, opacity .2s;
+}
+.btn-generate { background: #0d1b4b; color: #fff; }
+.btn-generate:hover { background: #1a3080; }
+.btn-print { background: #16a34a; color: #fff; }
+.btn-print:hover { background: #15803d; }
+.btn-print:disabled { background: #9ca3af; cursor: not-allowed; }
+.btn-save { background: #7c3aed; color: #fff; }
+.btn-save:hover { background: #6d28d9; }
+.btn-save:disabled { background: #9ca3af; cursor: not-allowed; }
+
+#status-msg {
+  margin-top: 12px;
+  font-size: .82rem;
+  text-align: center;
+  min-height: 18px;
+  color: #555;
+}
+#status-msg.ok  { color: #16a34a; font-weight: 600; }
+#status-msg.err { color: #dc2626; font-weight: 600; }
+
+/* summary */
+.summary {
+  margin-top: 10px;
+  font-size: .8rem;
+  color: #888;
+  text-align: center;
+  display: none;
+}
+.summary strong { color: #0d1b4b; }
+
+/* screen page preview */
+.preview-area {
+  margin-top: 28px;
+  width: 100%;
+  max-width: 860px;
+}
+.pg-label {
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: #888;
+  text-align: center;
+  margin-bottom: 6px;
+}
+.pg-wrap { margin-bottom: 20px; }
+
+/* Screen preview grid mirrors the print layout visually */
+.a4-screen {
+  background: #fff;
+  border: 1px solid #c8cdd6;
+  border-radius: 4px;
+  box-shadow: 0 1px 8px rgba(0,0,0,.07);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(4, auto);
+  border-collapse: collapse;
+  overflow: hidden;
+}
+
+.sc-cell {
+  border-right: 1px solid #c8cdd6;
+  border-bottom: 1px solid #c8cdd6;
+}
+.sc-cell:nth-child(3n)   { border-right: none; }
+.sc-cell.empty { min-height: 52px; }
+
+.sc-row {
+  display: flex;
+  border-bottom: 1px solid #e5e7eb;
+}
+.sc-row:last-child { border-bottom: none; }
+.sc-key {
+  font-size: .52rem;
+  font-weight: 700;
+  font-family: Arial, sans-serif;
+  padding: 3px 4px;
+  border-right: 1px solid #e5e7eb;
+  width: 38%;
+  display: flex;
+  align-items: center;
+  color: #222;
+  white-space: nowrap;
+}
+.sc-val {
+  font-size: .52rem;
+  font-family: Arial, sans-serif;
+  padding: 3px 4px;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  text-align: center;
+  color: #111;
+}
+
+/* ════════════════════════════════════════
+   PRINT STYLES  —  exact A4 dimensions
+   Label cell: 70mm wide × 74.25mm tall
+   Inner padding: 0.7cm (7mm) H, 0.45cm (4.5mm) V
+════════════════════════════════════════ */
+#print-area { display: none; }
+
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+
+@media print {
+  body { background: #fff; }
+  .screen-wrap { display: none !important; }
+  #print-area  { display: block !important; }
+
+  .a4-page {
+    width: 210mm;
+    height: 297mm;
+    display: grid;
+    grid-template-columns: repeat(3, 70mm);
+    grid-template-rows: repeat(4, 74.25mm);
+    page-break-after: always;
+    overflow: hidden;
+  }
+  .a4-page:last-child { page-break-after: avoid; }
+
+  .p-cell {
+    width: 70mm;
+    height: 74.25mm;
+    border: 0.4pt solid #000;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .p-row {
+    display: flex;
+    flex: 1;
+    border-bottom: 0.4pt solid #000;
+    overflow: hidden;
+  }
+  .p-row:last-child { border-bottom: none; }
+
+  .p-key {
+    /* 0.7cm horizontal padding */
+    padding: 0 7mm;
+    width: 38%;
+    font-size: 7pt;
+    font-family: Arial, sans-serif;
+    font-weight: 700;
+    border-right: 0.4pt solid #000;
+    display: flex;
+    align-items: center;
+    white-space: nowrap;
+    /* 0.45cm vertical padding */
+    padding-top: 4.5mm;
+    padding-bottom: 4.5mm;
+  }
+
+  .p-val {
+    padding: 4.5mm 7mm;
+    flex: 1;
+    font-size: 7pt;
+    font-family: Arial, sans-serif;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- ══ SCREEN UI ══ -->
+<div class="screen-wrap">
+  <div class="app-header">
+    <h1>📋 PBI Label Generator</h1>
+    <p>Fill in details → Generate → Print or Save to Sheet</p>
+  </div>
+
+  <div class="card">
+    <div class="form-group">
+      <label>Customer Name</label>
+      <input type="text" id="customer" value="PHIL BATTERIES">
+    </div>
+    <div class="form-group">
+      <label>Material</label>
+      <input type="text" id="material" value="YUPO VINYL B/B (G) PG-75 CAR BAT.">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Size</label>
+        <input type="text" id="size" value="320mm x 1000m">
+      </div>
+      <div class="form-group">
+        <label>Total Quantity</label>
+        <input type="number" id="qty" value="60" min="1" max="9999">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Date</label>
+      <input type="text" id="ldate" value="JUNE 26, 2026">
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-generate" onclick="generate()">Generate</button>
+      <button class="btn btn-print" id="btn-print" onclick="window.print()" disabled>🖨️ Print</button>
+      <button class="btn btn-save"  id="btn-save"  onclick="saveToSheet()" disabled>💾 Save</button>
+    </div>
+
+    <div id="status-msg"></div>
+
+    <div class="summary" id="summary">
+      <strong id="sum-count">—</strong>
+    </div>
+  </div>
+
+  <div class="preview-area" id="preview-area"></div>
+</div>
+
+<!-- ══ PRINT AREA ══ -->
+<div id="print-area"></div>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────
+// Paste your deployed Google Apps Script Web App URL here:
+const GAS_URL = 'https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec';
+// ────────────────────────────────────────────────────────
+
+const PER_PAGE = 12; // 3 cols × 4 rows
+
+let currentData = null; // holds last generated payload
+
+// ── LABEL ROW BUILDER ──
+function rows(customer, material, size, n, total, date, print) {
+  const fields = [
+    ['CUSTOMER:', customer],
+    ['MATERIAL:', material],
+    ['SIZE:',     size],
+    ['QTY:',      `${n} of ${total}`],
+    ['DATE:',     date],
+  ];
+  if (print) {
+    return fields.map(([k,v]) =>
+      `<div class="p-row"><div class="p-key">${k}</div><div class="p-val">${v}</div></div>`
+    ).join('');
+  } else {
+    return fields.map(([k,v]) =>
+      `<div class="sc-row"><div class="sc-key">${k}</div><div class="sc-val">${v}</div></div>`
+    ).join('');
+  }
+}
+
+// ── GENERATE ──
+function generate() {
+  const customer = document.getElementById('customer').value.trim() || 'CUSTOMER';
+  const material = document.getElementById('material').value.trim() || 'MATERIAL';
+  const size     = document.getElementById('size').value.trim()     || 'SIZE';
+  const qty      = Math.max(1, parseInt(document.getElementById('qty').value) || 1);
+  const date     = document.getElementById('ldate').value.trim().toUpperCase() || 'DATE';
+
+  const totalPages = Math.ceil(qty / PER_PAGE);
+
+  // Store payload for Save
+  currentData = { customer, material, size, qty, date, timestamp: new Date().toISOString() };
+
+  // ── Print HTML ──
+  let ph = '';
+  for (let p = 0; p < totalPages; p++) {
+    ph += `<div class="a4-page">`;
+    for (let i = 0; i < PER_PAGE; i++) {
+      const n = p * PER_PAGE + i + 1;
+      ph += n > qty
+        ? `<div class="p-cell"></div>`
+        : `<div class="p-cell">${rows(customer, material, size, n, qty, date, true)}</div>`;
+    }
+    ph += `</div>`;
+  }
+  document.getElementById('print-area').innerHTML = ph;
+
+  // ── Screen Preview HTML ──
+  let sh = '';
+  for (let p = 0; p < totalPages; p++) {
+    sh += `<div class="pg-wrap">
+      <div class="pg-label">Page ${p+1} of ${totalPages}</div>
+      <div class="a4-screen">`;
+    for (let i = 0; i < PER_PAGE; i++) {
+      const n = p * PER_PAGE + i + 1;
+      sh += n > qty
+        ? `<div class="sc-cell empty"></div>`
+        : `<div class="sc-cell">${rows(customer, material, size, n, qty, date, false)}</div>`;
+    }
+    sh += `</div></div>`;
+  }
+  document.getElementById('preview-area').innerHTML = sh;
+
+  // Summary
+  const s = document.getElementById('summary');
+  s.style.display = 'block';
+  document.getElementById('sum-count').textContent =
+    `${qty} labels · ${totalPages} A4 page${totalPages !== 1 ? 's' : ''} · 12 labels/page`;
+
+  document.getElementById('btn-print').disabled = false;
+  document.getElementById('btn-save').disabled  = false;
+  setStatus('');
+}
+
+// ── SAVE TO GOOGLE SHEET ──
+async function saveToSheet() {
+  if (!currentData) return;
+  if (GAS_URL.includes('YOUR_DEPLOYMENT_ID')) {
+    setStatus('⚠️ Paste your GAS Web App URL in the GAS_URL variable first.', 'err');
+    return;
+  }
+
+  setStatus('Saving to Google Sheet…', '');
+  document.getElementById('btn-save').disabled = true;
+
+  try {
+    const res = await fetch(GAS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'saveLabel', data: currentData })
+    });
+    const json = await res.json();
+    if (json.status === 'ok') {
+      setStatus('✅ Saved successfully!', 'ok');
+    } else {
+      setStatus('❌ Save failed: ' + (json.message || 'Unknown error'), 'err');
+    }
+  } catch (e) {
+    setStatus('❌ Network error: ' + e.message, 'err');
+  }
+
+  document.getElementById('btn-save').disabled = false;
+}
+
+function setStatus(msg, type) {
+  const el = document.getElementById('status-msg');
+  el.textContent = msg;
+  el.className = type || '';
+}
+
+// Auto-generate on load
+window.onload = generate;
+</script>
+</body>
+</html>

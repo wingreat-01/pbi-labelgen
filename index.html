@@ -154,7 +154,7 @@ body {
 
 @page {
   size: A4 landscape;
-  margin: 12mm 18mm;   /* top/bottom: 12mm | left/right: 18mm */
+  margin: 0;
 }
 
 @media print {
@@ -162,13 +162,27 @@ body {
   .screen-wrap { display: none !important; }
   #print-area  { display: block !important; overflow: visible; }
 
-  /* Usable: (297 - 2×18) × (210 - 2×12) = 261mm × 186mm */
+  /* Full A4 landscape page wrapper: 297 × 210mm */
+  /* Grid is inset by 12mm top/bottom, 18mm left/right */
+  .a4-page-wrap {
+    width:  297mm;
+    height: 210mm;
+    position: relative;
+    page-break-after: always;
+    overflow: visible;
+  }
+  .a4-page-wrap:last-child { page-break-after: avoid; }
+
+  /* Label grid — inset by margins */
   .a4-page {
+    position: absolute;
+    top:  12mm;
+    left: 18mm;
     width:  261mm;   /* 297 - 2×18mm */
     height: 186mm;   /* 210 - 2×12mm */
     display: grid;
-    grid-template-columns: repeat(3, 87mm);    /* 261/3 */
-    grid-template-rows:    repeat(4, 46.5mm);  /* 186/4 */
+    grid-template-columns: repeat(3, 87mm);
+    grid-template-rows:    repeat(4, 46.5mm);
     border: 1pt solid #000;
     overflow: hidden;
   }
@@ -223,32 +237,6 @@ body {
     font-size: 9.5pt;
     white-space: nowrap;
     overflow: hidden;
-  }
-
-  /* ════════════ CUTTING GUIDES ════════════
-     SVG overlay — dashed lines extend only into the margin,
-     stopping exactly at the label grid edge.
-     Wrapper is same footprint as the label grid (261×186mm).
-     SVG overflows into the margin via overflow:visible.
-  ════════════ */
-  .a4-page-wrap {
-    position: relative;
-    width:  261mm;
-    height: 186mm;
-    page-break-after: always;
-    overflow: visible;
-    /* Push the wrapper slightly so left/top margin stubs are not at the page edge */
-    margin-left: 0;
-    margin-top: 0;
-  }
-  .a4-page-wrap:last-child { page-break-after: avoid; }
-
-  .cut-guides {
-    position: absolute;
-    top: 0; left: 0;
-    width: 261mm; height: 186mm;
-    overflow: visible;
-    pointer-events: none;
   }
 </style>
 </head>
@@ -362,55 +350,58 @@ function generate() {
     let lines = '';
 
     if (!forScreen) {
-      // PRINT SVG: viewBox covers -STUB to 261+STUB horizontally, -STUB to 186+STUB vertically
-      // Coordinates map 1:1 to mm. Grid sits at (0,0)→(261,186).
-      // Left stub:   x from -STUB to 0   | Right stub:  x from 261 to 261+STUB
-      // Top stub:    y from -STUB to 0   | Bottom stub: y from 186 to 186+STUB
-      const VX = -STUB, VY = -STUB;
-      const VW = 261 + STUB * 2, VH = 186 + STUB * 2;
+      // PRINT SVG: viewBox = full A4 landscape paper (297 × 210mm)
+      // Grid sits at x=18, y=12 (the page margins)
+      // colX/rowY are grid-relative → offset by 18/12 for paper coords
+      // Stubs fill the margin strip between paper edge and grid edge
+
+      const PW = 297, PH = 210;
+      const ML = 18,  MT = 12;
 
       rowY.forEach(y => {
-        lines += `<line x1="${-STUB}" y1="${y}" x2="0"           y2="${y}" stroke="#000" stroke-width="${SW}" stroke-dasharray="${DASH}"/>`;
-        lines += `<line x1="261"      y1="${y}" x2="${261+STUB}"  y2="${y}" stroke="#000" stroke-width="${SW}" stroke-dasharray="${DASH}"/>`;
+        const py = MT + y;
+        lines += `<line x1="0"        y1="${py}" x2="${ML}"      y2="${py}" stroke="#000" stroke-width="${SW}" stroke-dasharray="${DASH}"/>`;
+        lines += `<line x1="${ML+261}" y1="${py}" x2="${PW}"      y2="${py}" stroke="#000" stroke-width="${SW}" stroke-dasharray="${DASH}"/>`;
       });
       colX.forEach(x => {
-        lines += `<line x1="${x}" y1="${-STUB}" x2="${x}" y2="0"           stroke="#000" stroke-width="${SW}" stroke-dasharray="${DASH}"/>`;
-        lines += `<line x1="${x}" y1="186"      x2="${x}" y2="${186+STUB}" stroke="#000" stroke-width="${SW}" stroke-dasharray="${DASH}"/>`;
+        const px = ML + x;
+        lines += `<line x1="${px}" y1="0"        x2="${px}" y2="${MT}"      stroke="#000" stroke-width="${SW}" stroke-dasharray="${DASH}"/>`;
+        lines += `<line x1="${px}" y1="${MT+186}" x2="${px}" y2="${PH}"      stroke="#000" stroke-width="${SW}" stroke-dasharray="${DASH}"/>`;
       });
 
       return `<svg xmlns="http://www.w3.org/2000/svg"
-        width="${VW}mm" height="${VH}mm"
-        viewBox="${VX} ${VY} ${VW} ${VH}"
-        style="position:absolute;top:-${STUB}mm;left:-${STUB}mm;overflow:visible;pointer-events:none;z-index:10">
+        viewBox="0 0 ${PW} ${PH}"
+        width="${PW}mm" height="${PH}mm"
+        style="position:absolute;top:0;left:0;pointer-events:none;z-index:10">
         ${lines}
       </svg>`;
 
     } else {
-      // SCREEN PREVIEW: percentage-based SVG inside .a4-screen-wrap
-      // Stubs extend OUTSIDE the grid into the margin area (negative % and >100%)
-      // SVG uses overflow:visible so stubs show beyond the container bounds
-      const stubHpct = (STUB / 261 * 100).toFixed(3); // % of width
-      const stubVpct = (STUB / 186 * 100).toFixed(3); // % of height
+      // SCREEN PREVIEW:
+      // SVG viewBox matches the full paper in mm: 0 0 297 210
+      // Grid is inset: left=18mm, top=12mm, width=261mm, height=186mm
+      // colX/rowY are grid-relative, so offset by ML/MT for paper-space coords
+      // Stubs fill the margin gap between paper edge and grid edge
+
+      const PW = 297, PH = 210;
+      const ML = 18,  MT = 12;
 
       rowY.forEach(y => {
-        const ypct = (y / 186 * 100).toFixed(3);
-        // Left stub: from -stubH% to 0%
-        lines += `<line x1="-${stubHpct}%" y1="${ypct}%" x2="0%" y2="${ypct}%" stroke="#555" stroke-width="0.5" stroke-dasharray="3 2"/>`;
-        // Right stub: from 100% to 100+stubH%
-        lines += `<line x1="100%" y1="${ypct}%" x2="${(100 + +stubHpct).toFixed(3)}%" y2="${ypct}%" stroke="#555" stroke-width="0.5" stroke-dasharray="3 2"/>`;
+        const py = MT + y;
+        lines += `<line x1="0"        y1="${py}" x2="${ML}"      y2="${py}" stroke="#555" stroke-width="0.4" stroke-dasharray="2 1.5"/>`;
+        lines += `<line x1="${ML+261}" y1="${py}" x2="${PW}"      y2="${py}" stroke="#555" stroke-width="0.4" stroke-dasharray="2 1.5"/>`;
       });
 
       colX.forEach(x => {
-        const xpct = (x / 261 * 100).toFixed(3);
-        // Top stub: from -stubV% to 0%
-        lines += `<line x1="${xpct}%" y1="-${stubVpct}%" x2="${xpct}%" y2="0%" stroke="#555" stroke-width="0.5" stroke-dasharray="3 2"/>`;
-        // Bottom stub: from 100% to 100+stubV%
-        lines += `<line x1="${xpct}%" y1="100%" x2="${xpct}%" y2="${(100 + +stubVpct).toFixed(3)}%" stroke="#555" stroke-width="0.5" stroke-dasharray="3 2"/>`;
+        const px = ML + x;
+        lines += `<line x1="${px}" y1="0"        x2="${px}" y2="${MT}"      stroke="#555" stroke-width="0.4" stroke-dasharray="2 1.5"/>`;
+        lines += `<line x1="${px}" y1="${MT+186}" x2="${px}" y2="${PH}"      stroke="#555" stroke-width="0.4" stroke-dasharray="2 1.5"/>`;
       });
 
       return `<svg xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 ${PW} ${PH}"
         width="100%" height="100%"
-        style="position:absolute;top:0;left:0;pointer-events:none;overflow:visible;z-index:10">
+        style="position:absolute;top:0;left:0;pointer-events:none;z-index:10">
         ${lines}
       </svg>`;
     }
